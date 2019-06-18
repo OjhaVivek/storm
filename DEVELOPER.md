@@ -90,7 +90,7 @@ _If you are interested in contributing code to Storm but do not know where to be
 In this case you should
 [browse our issue tracker for open issues and tasks](https://issues.apache.org/jira/browse/STORM/?selectedTab=com.atlassian.jira.jira-projects-plugin:issues-panel).
 You may want to start with beginner-friendly, easier issues
-([newbie issues](https://issues.apache.org/jira/browse/STORM-58?jql=project%20%3D%20STORM%20AND%20labels%20%3D%20newbie%20AND%20status%20%3D%20Open)
+([newbie issues](https://issues.apache.org/jira/issues/?jql=project%20%3D%20STORM%20AND%20status%20%3D%20Open%20AND%20labels%20%3D%20newbie)
 and
 [trivial issues](https://issues.apache.org/jira/secure/IssueNavigator.jspa?reset=true&jqlQuery=project+%3D+STORM+AND+resolution+%3D+Unresolved+AND+priority+%3D+Trivial+ORDER+BY+key+DESC&mode=hide))
 because they require learning about only an isolated portion of the codebase and are a relatively small amount of work.
@@ -311,9 +311,22 @@ By default integration tests are not run in the test phase. To run Java and Cloj
 ## Listing dependency licenses
 
 You can generate a list of dependencies and their licenses by running `mvn generate-resources -Dlicense.skipAggregateAddThirdParty=false` in the project root.
-The list will be put in target/generated-sources/license/THIRD-PARTY.txt.
+The list will be put in DEPENDENCY_LICENSES.
 
 The license aggregation plugin will use the license listed in a dependency's POM. If the license is missing, or incomplete (e.g. due to multiple licenses), you can override the license by describing the dependency in the THIRD-PARTY.properties file in the project root.
+
+## Auditing licenses for LICENSE/NOTICE
+The LICENSE and NOTICE files contain licenses and notices for source distribution content. The LICENSE-binary and NOTICE-binary apply to the binary distributions.
+
+When auditing the binary LICENSE-binary and NOTICE-binary, there are a couple of helper scripts available in dev-tools. `collect_license_files` can create an aggregate NOTICE from the libraries in an extracted distribution. The aggregate NOTICE should be adjusted to remove Storm notices and duplicates, and added to the NOTICE-binary.
+
+`list_jars` can list the jars in an extracted binary distribution. Note that while listing all the jars in the binary distribution is helpful, special attention must be paid to shaded jars, as they may contain shaded dependencies that must be listed in LICENSE-binary separately.
+
+The license plugin can generate a list of dependencies with licenses for the binary distribution with the following command: `mvn generate-resources -Dlicense.skipAggregateAddThirdParty=false` in the storm-dist/binary directory. 
+
+The generated list in target/generated-sources/license/THIRD-PARTY.txt is mostly complete, and a good input to the LICENSE-binary file. The major omission in it is the storm-shaded-deps dependencies, as they are shaded. These dependencies can be manually listed with `mvn dependency:list` in the storm-shaded-deps project, and then manually added. 
+
+You can download the dependency licenses by running `mvn package -Dlicense.skipAggregateDownloadLicenses=false -DskipTests` in the project root. This will put the licenses in target/generated-resources. Keep an eye on the Maven output, as some dependencies may not have licenses configured correctly. These will have to be downloaded manually.
 
 <a name="packaging"></a>
 

@@ -945,10 +945,126 @@ public class TestResourceAwareScheduler {
         scheduler.prepare(config);
         scheduler.schedule(topologies, cluster);
 
+        assertFalse("Topo-1 unscheduled?", cluster.getAssignmentById(topo1.getId()) != null);
         assertTrue("Topo-2 scheduled?", cluster.getAssignmentById(topo2.getId()) != null);
         assertEquals("Topo-2 all executors scheduled?", 4, cluster.getAssignmentById(topo2.getId()).getExecutorToSlot().size());
         assertTrue("Topo-3 scheduled?", cluster.getAssignmentById(topo3.getId()) != null);
         assertEquals("Topo-3 all executors scheduled?", 3, cluster.getAssignmentById(topo3.getId()).getExecutorToSlot().size());
+    }
+
+    /**
+     * Min CPU for worker set to 50%.  1 supervisor with 100% CPU.
+     * A topology with 10 10% components should schedule.
+     */
+    @Test
+    public void minCpuWorkerJustFits() {
+        INimbus iNimbus = new INimbusTest();
+        Map<String, SupervisorDetails> supMap = genSupervisors(1, 4, 100, 60000);
+        Config config = createClusterConfig(10, 500, 500, null);
+        config.put(DaemonConfig.STORM_WORKER_MIN_CPU_PCORE_PERCENT, 50.0);
+        TopologyDetails topo1 = genTopology("topo-1", config, 10, 0, 1, 1, currentTime - 2, 20, "jerry");
+        Topologies topologies = new Topologies(topo1);
+        Cluster cluster = new Cluster(iNimbus, new ResourceMetrics(new StormMetricsRegistry()), supMap, new HashMap<String, SchedulerAssignmentImpl>(), topologies, config);
+        scheduler = new ResourceAwareScheduler();
+        scheduler.prepare(config);
+        scheduler.schedule(topologies, cluster);
+        assertTrue("Topo-1 scheduled?", cluster.getAssignmentById(topo1.getId()) != null);
+    }
+
+    /**
+     * Min CPU for worker set to 40%.  1 supervisor with 100% CPU.
+     * 2 topologies with 2 10% components should schedule.  A third topology should then fail scheduling due to lack of CPU.
+     */
+    @Test
+    public void minCpuPreventsThirdTopo() {
+        INimbus iNimbus = new INimbusTest();
+        Map<String, SupervisorDetails> supMap = genSupervisors(1, 4, 100, 60000);
+        Config config = createClusterConfig(10, 500, 500, null);
+        config.put(DaemonConfig.STORM_WORKER_MIN_CPU_PCORE_PERCENT, 40.0);
+        TopologyDetails topo1 = genTopology("topo-1", config, 2, 0, 1, 1, currentTime - 2, 20, "jerry");
+        TopologyDetails topo2 = genTopology("topo-2", config, 2, 0, 1, 1, currentTime - 2, 20, "jerry");
+        TopologyDetails topo3 = genTopology("topo-3", config, 2, 0, 1, 1, currentTime - 2, 20, "jerry");
+        Topologies topologies = new Topologies(topo1, topo2, topo3);
+        Cluster cluster = new Cluster(iNimbus, new ResourceMetrics(new StormMetricsRegistry()), supMap, new HashMap<String, SchedulerAssignmentImpl>(), topologies, config);
+        scheduler = new ResourceAwareScheduler();
+        scheduler.prepare(config);
+        scheduler.schedule(topologies, cluster);
+        assertTrue("topo-1 scheduled?", cluster.getAssignmentById(topo1.getId()) != null);
+        assertTrue("topo-2 scheduled?", cluster.getAssignmentById(topo2.getId()) != null);
+        assertFalse("topo-3 unscheduled?", cluster.getAssignmentById(topo3.getId()) != null);
+
+        SchedulerAssignment assignment1 = cluster.getAssignmentById(topo1.getId());
+        assertEquals(1, assignment1.getSlots().size());
+        Map<WorkerSlot, WorkerResources> assignedSlots1 = assignment1.getScheduledResources();
+        double assignedCpu = 0.0;
+        for (Entry<WorkerSlot, WorkerResources> entry : assignedSlots1.entrySet()) {
+            WorkerResources wr = entry.getValue();
+            assignedCpu += wr.get_cpu();
+        }
+        assertEquals(40.0, assignedCpu, 0.001);
+
+        SchedulerAssignment assignment2 = cluster.getAssignmentById(topo2.getId());
+        assertEquals(1, assignment2.getSlots().size());
+        Map<WorkerSlot, WorkerResources> assignedSlots2 = assignment2.getScheduledResources();
+        assignedCpu = 0.0;
+        for (Entry<WorkerSlot, WorkerResources> entry : assignedSlots2.entrySet()) {
+            WorkerResources wr = entry.getValue();
+            assignedCpu += wr.get_cpu();
+        }
+        assertEquals(40.0, assignedCpu, 0.001);
+    }
+
+    @Test
+    public void testMinCpuMaxMultipleSupervisors() {
+        INimbus iNimbus = new INimbusTest();
+        Map<String, SupervisorDetails> supMap = genSupervisors(3, 4, 300, 60000);
+        Config config = createClusterConfig(5, 50, 50, null);
+        config.put(DaemonConfig.STORM_WORKER_MIN_CPU_PCORE_PERCENT, 100.0);
+        TopologyDetails topo0 = genTopology("topo-0", config, 4, 5, 1, 1, currentTime - 2, 20, "jerry");
+        TopologyDetails topo1 = genTopology("topo-1", config, 4, 5, 1, 1, currentTime - 2, 20, "jerry");
+        TopologyDetails topo2 = genTopology("topo-2", config, 4, 5, 1, 1, currentTime - 2, 20, "jerry");
+        TopologyDetails topo3 = genTopology("topo-3", config, 4, 5, 1, 1, currentTime - 2, 20, "jerry");
+        TopologyDetails topo4 = genTopology("topo-4", config, 4, 5, 1, 1, currentTime - 2, 20, "jerry");
+        TopologyDetails topo5 = genTopology("topo-5", config, 4, 5, 1, 1, currentTime - 2, 20, "jerry");
+        TopologyDetails topo6 = genTopology("topo-6", config, 4, 5, 1, 1, currentTime - 2, 20, "jerry");
+        TopologyDetails topo7 = genTopology("topo-7", config, 4, 5, 1, 1, currentTime - 2, 20, "jerry");
+        TopologyDetails topo8 = genTopology("topo-8", config, 4, 5, 1, 1, currentTime - 2, 20, "jerry");
+        TopologyDetails topo9 = genTopology("topo-9", config, 4, 5, 1, 1, currentTime - 2, 20, "jerry");
+        Topologies topologies = new Topologies(topo0, topo1, topo2, topo3, topo4, topo5, topo6, topo7, topo8, topo9);
+        Cluster cluster = new Cluster(iNimbus, new ResourceMetrics(new StormMetricsRegistry()), supMap, new HashMap<String, SchedulerAssignmentImpl>(), topologies, config);
+        scheduler = new ResourceAwareScheduler();
+        scheduler.prepare(config);
+        scheduler.schedule(topologies, cluster);
+        assertTrue("topo-0 scheduled?", cluster.getAssignmentById(topo0.getId()) != null);
+        assertTrue("topo-1 scheduled?", cluster.getAssignmentById(topo1.getId()) != null);
+        assertTrue("topo-2 scheduled?", cluster.getAssignmentById(topo2.getId()) != null);
+        assertTrue("topo-3 scheduled?", cluster.getAssignmentById(topo3.getId()) != null);
+        assertTrue("topo-4 scheduled?", cluster.getAssignmentById(topo4.getId()) != null);
+        assertTrue("topo-5 scheduled?", cluster.getAssignmentById(topo5.getId()) != null);
+        assertTrue("topo-6 scheduled?", cluster.getAssignmentById(topo6.getId()) != null);
+        assertTrue("topo-7 scheduled?", cluster.getAssignmentById(topo7.getId()) != null);
+        assertTrue("topo-8 scheduled?", cluster.getAssignmentById(topo8.getId()) != null);
+        assertFalse("topo-9 unscheduled?", cluster.getAssignmentById(topo9.getId()) != null);
+    }
+
+    /**
+     * Min CPU for worker set to 50%.  1 supervisor with 100% CPU.
+     * A topology with 3 workers should fail scheduling even if under CPU.
+     */
+    @Test
+    public void minCpuWorkerSplitFails() {
+        INimbus iNimbus = new INimbusTest();
+        Map<String, SupervisorDetails> supMap = genSupervisors(1, 4, 100, 60000);
+        Config config = createClusterConfig(10, 500, 500, null);
+        config.put(DaemonConfig.STORM_WORKER_MIN_CPU_PCORE_PERCENT, 50.0);
+        TopologyDetails topo1 = genTopology("topo-1", config, 10, 0, 1, 1, currentTime - 2, 20,
+                "jerry", 2000.0);
+        Topologies topologies = new Topologies(topo1);
+        Cluster cluster = new Cluster(iNimbus, new ResourceMetrics(new StormMetricsRegistry()), supMap, new HashMap<String, SchedulerAssignmentImpl>(), topologies, config);
+        scheduler = new ResourceAwareScheduler();
+        scheduler.prepare(config);
+        scheduler.schedule(topologies, cluster);
+        assertFalse("Topo-1 unscheduled?", cluster.getAssignmentById(topo1.getId()) != null);
     }
 
     /**

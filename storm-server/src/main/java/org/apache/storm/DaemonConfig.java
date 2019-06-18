@@ -317,6 +317,12 @@ public class DaemonConfig implements Validated {
     public static final String UI_DISABLE_HTTP_BINDING = "ui.disable.http.binding";
 
     /**
+     * This controls whether Storm UI displays spout lag for the Kafka spout.
+     */
+    @isBoolean
+    public static final String UI_DISABLE_SPOUT_LAG_MONITORING = "ui.disable.spout.lag.monitoring";
+
+    /**
      * This controls wheather Storm Logviewer should bind to http port even if logviewer.port is > 0.
      */
     @isBoolean
@@ -1125,6 +1131,17 @@ public class DaemonConfig implements Validated {
     @isPositiveNumber
     public static String STORM_SUPERVISOR_MEDIUM_MEMORY_GRACE_PERIOD_MS =
         "storm.supervisor.medium.memory.grace.period.ms";
+
+    /**
+     * The config indicates the minimum percentage of cpu for a core that a worker will use. Assuming the a core value to be
+     * 100, a value of 10 indicates 10% of the core. The P in PCORE represents the term "physical".  A default value will be set for this
+     * config if user does not override.
+     * <P></P>
+     * Workers in containers or cgroups may require a minimum amount of CPU in order to launch within the supervisor timeout.
+     * This setting allows configuring this to occur.
+     */
+    @isPositiveNumber(includeZero = true)
+    public static String STORM_WORKER_MIN_CPU_PCORE_PERCENT = "storm.worker.min.cpu.pcore.percent";
 
     // VALIDATION ONLY CONFIGS
     // Some configs inside Config.java may reference classes we don't want to expose in storm-client, but we still want to validate
